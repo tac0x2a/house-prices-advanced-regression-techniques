@@ -1,16 +1,21 @@
 
+# %%
 import pandas as pd
 pd.options.display.max_columns = None
 train = pd.read_csv("train.csv")
-# %matplotlib inline
 
+print(train.shape)
+print(train.shape)
+print(train.describe())
 
-# train.head()
-# train.describe()
+# %% 欠損値の確認
+print(train.isnull().sum()[train.isnull().sum() > 0].sort_values())
 
-# 欠損値を埋める
+# %% 欠損値を埋める
 def cleanse_data(data):
     fill = {
+        'PoolQC' : 'NoPool',
+
         # Fence: Fence quality. NA	No Fence
         'Fence'       : 'NoFence',
 
@@ -25,8 +30,6 @@ def cleanse_data(data):
         'GarageFinish': 'NoGarage',
         'GarageQual'  : 'NoGarage',
         'GarageCond'  : 'NoGarage',
-
-        'PoolQC' : 'NoPool',
 
         # Miscellaneous feature not covered in other categories
         'MiscFeature' : 'None',
@@ -63,10 +66,15 @@ def cleanse_data(data):
 
     return cleansed_data
 
+
+# %% 欠損値を埋める
 cleansed_train = cleanse_data(train)
 
-# -----------------------------------------------------------------------------------------
+# %%
+cleansed_train.describe()
 
+# %% prepare train data
+# -----------------------------------------------------------------------------------------
 # cleansed_train[['OverallQual', 'OverallCond','GarageCars', 'Fireplaces']].head()
 X = cleansed_train.drop(['Id', 'SalePrice'],axis=1)
 y = cleansed_train['SalePrice']
@@ -79,38 +87,52 @@ X_train, X_test, y_train, y_test = train_test_split(X,y)
 # X_test.head()
 # y_test.head()
 
-# -------------------------------
-# from sklearn.linear_model import Ridge
-# model = Ridge(alpha=.4).fit(X_train, y_train)
-# model.score(X_test, y_test)
-#
-# # -------------------------------
-# from sklearn.neighbors.regression import KNeighborsRegressor
-# model = KNeighborsRegressor(n_neighbors=3).fit(X_train, y_train)
-# model.score(X_test, y_test)
+models = []
 
+# %% by Ridge -------------------------------
+from sklearn.linear_model import Ridge
+model = Ridge(alpha=.4).fit(X_train, y_train)
+# model.score(X_test, y_test)
+models.append(model)
+
+# %% by KNeighbors -------------------------------
+from sklearn.neighbors.regression import KNeighborsRegressor
+model = KNeighborsRegressor(n_neighbors=3).fit(X_train, y_train)
+model.score(X_test, y_test)
+models.append(model)
+
+# %%
 # -------------------------------
 from sklearn.linear_model import Lasso
 model = Lasso().fit(X_train, y_train)
 model.score(X_train, y_train)
 model.score(X_test, y_test)
+models.append(model)
 
-# -------------------------------
-# Plot coef
-coef = pd.DataFrame(X.columns, columns=['Name'])
-coef['coef'] = pd.Series(model.coef_)
-coef.sort_values(by='coef')
+# %% Print Scores
+for m in models:
+    print("{}\n{}\n\n".format(m.score(X_test, y_test), str(m)))
 
+# %% Plot coef
 import seaborn as sns
 import matplotlib.pyplot as plt
-sns.set_context("notebook")
 
-model.score(X_test, y_test)
-plt.figure(figsize=(20, 30))
-sns.barplot(y='Name', x='coef', data=coef )
+for model in models:
+    if hasattr(model, 'coef_'):
+        print(str(model))
+        coef = pd.DataFrame(X.columns, columns=['Name'])
+        coef['coef'] = pd.Series(model.coef_)
+        coef.sort_values(by='coef')
 
+        sns.set_context("notebook")
+
+        model.score(X_test, y_test)
+        plt.title(str(m))
+        plt.figure(figsize=(20, 30))
+        sns.barplot(y='Name', x='coef', data=coef )
+
+# %%
 # ---------------------------------------------------------------
-
 def predict_and_output_csv(model, src_file_name, dst_file_name):
     src_file_name ='test.csv'
     test = pd.read_csv(src_file_name)
