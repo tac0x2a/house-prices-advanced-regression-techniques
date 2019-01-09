@@ -1,5 +1,6 @@
 
 # %%
+from sklearn.preprocessing import LabelEncoder
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from sklearn.decomposition import PCA
@@ -16,6 +17,7 @@ from sklearn.neighbors.regression import KNeighborsRegressor
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import train_test_split
 import pandas as pd
+import numpy as np
 pd.options.display.max_columns = None
 
 # %%
@@ -23,73 +25,49 @@ train = pd.read_csv("train.csv")
 
 print(train.describe())
 print(train.shape)
-print(train.shape)
 
 # %% 欠損値の確認
-print(train.isnull().sum()[train.isnull().sum() != 0].sort_values())
 
-dumm = pd.get_dummies(train)
-print(dumm.isnull().sum()[dumm.isnull().sum() != 0].sort_values())
+
+def show_missing_values(train):
+    print(train.isnull().sum()[train.isnull().sum() != 0].sort_values())
+    dumm = pd.get_dummies(train)
+    print(dumm.isnull().sum()[dumm.isnull().sum() != 0].sort_values())
+
+
+show_missing_values(train)
+#
 
 # %% 欠損値の穴埋め
 
 
 def fill_missing_data(data):
-    fill = {
-        'PoolQC': 'NoPool',
+    filling_columns = data.columns[np.where(data.isnull().sum() > 0)]
+    filled_data = data.copy()
+    for c in filling_columns:
+        v = None
+        if data[c].dtype == 'object':
+            v = 'None'
+        else:
+            v = data[c].median()
+        filled_data[c] = filled_data.fillna(value=v)
+    return filled_data
 
-        # Fence: Fence quality. NA	No Fence
-        'Fence': 'NoFence',
-
-        # Alley: Type of alley access to property NA No alley access
-        'Alley': 'NoAlleyAccess',
-
-        # FireplaceQu: Fireplace quality NA	No Garage
-        'FireplaceQu': 'NoGarage',
-
-        'GarageType': 'NoGarage',
-        'GarageYrBlt': 'NoGarage',
-        'GarageFinish': 'NoGarage',
-        'GarageQual': 'NoGarage',
-        'GarageCond': 'NoGarage',
-
-        # Miscellaneous feature not covered in other categories
-        'MiscFeature': 'None',
-
-        # BsmtQual: Evaluates the height of the basement
-        'BsmtQual': 'NoBasement',
-        # BsmtCond: Evaluates the general condition of the basement
-        'BsmtCond': 'NoBasement',
-        'BsmtExposure': 'NoBasement',
-        'BsmtFinType1': 'NoBasement',
-        'BsmtFinType2': 'NoBasement',
-
-        # LotFrontage: Linear feet of street connected to property
-        'LotFrontage': train.describe()['LotFrontage']['50%'],
-
-        # MasVnrType
-        'MasVnrType': 'None',
-        'MasVnrArea': 'None',
-
-        # Electrical: Electrical system
-        'Electrical': 'Unknown'
-    }
-    return data.copy().fillna(value=fill)
-
+# fill_missing_data(train)
 
 # %% ラベルを数値に置き換え
+
+
 def label_encoder(data):
     cleansed_data = data.copy()
 
     label_columns = filter(lambda c: str(
         cleansed_data[c].dtype) == 'object', cleansed_data)
-    uniqne_labels = set()
+
     for l in label_columns:
-        uniqne_labels = uniqne_labels.union(set(cleansed_data[l].unique()))
-    unique_labels = reversed(list(uniqne_labels))
-    replace = {l: i for l, i in zip(uniqne_labels, range(len(uniqne_labels)))}
-    cleansed_data = cleansed_data.replace(replace)
-    #cleansed_data = cleansed_data.drop(['LotArea', 'MiscVal'], axis=1)
+        cleansed_data[l] = LabelEncoder().fit_transform(cleansed_data[l])
+
+    cleansed_data = cleansed_data.drop(['LotArea', 'MiscVal'], axis=1)
 
     return cleansed_data
 
@@ -97,15 +75,17 @@ def label_encoder(data):
 
 
 def predict_and_output_csv(model, src_file_name, dst_file_name, scalers=[]):
-    test = pd.read_csv(src_file_name)
+    src = pd.read_csv(src_file_name)
+    # show_missing_values(src)
+
+    test = fill_missing_data(src)
     creansed_data = label_encoder(test)
+
     data = creansed_data.drop(['Id'], axis=1)
-    # print(data.shape)
-    if len(scalers) > 0:
-        for s in scalers:
-            print('Appling Scaler:', str(s))
-            data = s.transform(data)
-    # print(data.shape)
+
+    for s in scalers:
+        # print('Appling Scaler:', str(s))
+        data = s.transform(data)
     predict = model.predict(data)
 
     result = pd.concat([test['Id'], pd.DataFrame(
@@ -123,9 +103,8 @@ def split_X_y(original_data):
     y = data['SalePrice']
     return (X, y)
 
+
 # %% クレンジングしてデータをX,yに分解する
-
-
 filled_train = fill_missing_data(train)
 
 # ラベルを数値に置き換える
@@ -137,9 +116,9 @@ X_org, y = split_X_y(cleansed_train)
 # %% スケールを合わせる
 scalers = []
 
-scaler = StandardScaler().fit(X_org)
+# scaler = StandardScaler().fit(X_org)
 # scaler = MinMaxScaler().fit(X_org)
-# scaler = RobustScaler().fit(X_org)
+scaler = RobustScaler().fit(X_org)
 scalers.append(scaler)
 
 X_scaled = scaler.transform(X_org)
