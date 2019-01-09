@@ -74,7 +74,7 @@ def label_encoder(data):
 # %% CSV出力する
 
 
-def predict_and_output_csv(model, src_file_name, dst_file_name, scalers=[]):
+def predict_and_output_csv(model, src_file_name, dst_file_name, scalers=[], encoders=[]):
     src = pd.read_csv(src_file_name)
     # show_missing_values(src)
 
@@ -104,6 +104,16 @@ def split_X_y(original_data):
     return (X, y)
 
 
+# %% [WIP] エンコーダを生成する
+d1 = train.drop(['Id', 'SalePrice'], axis=1)
+test = pd.read_csv("test.csv")
+d2 = test.drop(['Id'], axis=1)
+
+print(d1.shape)
+print(d2.shape)
+print(pd.concat([d1, d2], ignore_index=True).shape)
+
+
 # %% クレンジングしてデータをX,yに分解する
 filled_train = fill_missing_data(train)
 
@@ -116,19 +126,17 @@ X_org, y = split_X_y(cleansed_train)
 # %% スケールを合わせる
 scalers = []
 
-# scaler = StandardScaler().fit(X_org)
+scaler = StandardScaler().fit(X_org)
 # scaler = MinMaxScaler().fit(X_org)
-scaler = RobustScaler().fit(X_org)
+# scaler = RobustScaler().fit(X_org)
 scalers.append(scaler)
 
 X_scaled = scaler.transform(X_org)
-# X_scaled_l = scaler.transform(labeled_train)
+X = X_scaled
 
-pca = PCA(n_components=10).fit(X_scaled)
+# pca = PCA(n_components=10).fit(X_scaled)
 # scalers.append(pca)
 # X_pca = pca.transform(X_scaled)
-
-X = X_scaled
 # X = X_pca
 
 X_train, X_test, y_train, y_test = train_test_split(X, y)
@@ -183,7 +191,8 @@ print(best_model.score(X_test, y_test))
 print(best_model)
 
 # %% Output 'output.csv' file.
-result = predict_and_output_csv(best_model, 'test.csv', 'out.csv', scalers)
+result = predict_and_output_csv(
+    best_model, 'test.csv', 'out.csv', scalers, encoders)
 
 # %% Plot coef
 
