@@ -31,10 +31,10 @@ print(train.isnull().sum()[train.isnull().sum() != 0].sort_values())
 dumm = pd.get_dummies(train)
 print(dumm.isnull().sum()[dumm.isnull().sum() != 0].sort_values())
 
-# %% 欠損値を埋める
+# %% 欠損値の穴埋め
 
 
-def cleanse_data(data):
+def fill_missing_data(data):
     fill = {
         'PoolQC': 'NoPool',
 
@@ -74,7 +74,12 @@ def cleanse_data(data):
         # Electrical: Electrical system
         'Electrical': 'Unknown'
     }
-    cleansed_data = data.copy().fillna(value=fill)
+    return data.copy().fillna(value=fill)
+
+
+# %% ラベルを数値に置き換え
+def label_encoder(data):
+    cleansed_data = data.copy()
 
     label_columns = filter(lambda c: str(
         cleansed_data[c].dtype) == 'object', cleansed_data)
@@ -84,27 +89,23 @@ def cleanse_data(data):
     unique_labels = reversed(list(uniqne_labels))
     replace = {l: i for l, i in zip(uniqne_labels, range(len(uniqne_labels)))}
     cleansed_data = cleansed_data.replace(replace)
-
-    cleansed_data = cleansed_data.drop(['LotArea', 'MiscVal'], axis=1)
+    #cleansed_data = cleansed_data.drop(['LotArea', 'MiscVal'], axis=1)
 
     return cleansed_data
 
 # %% CSV出力する
-# ---------------------------------------------------------------
 
 
 def predict_and_output_csv(model, src_file_name, dst_file_name, scalers=[]):
     test = pd.read_csv(src_file_name)
-    creansed_data = cleanse_data(test)
-    # creansed_data.drop(['Id'], axis=1)
+    creansed_data = label_encoder(test)
     data = creansed_data.drop(['Id'], axis=1)
-    # data.columns
-    print(data.shape)
+    # print(data.shape)
     if len(scalers) > 0:
         for s in scalers:
             print('Appling Scaler:', str(s))
             data = s.transform(data)
-    print(data.shape)
+    # print(data.shape)
     predict = model.predict(data)
 
     result = pd.concat([test['Id'], pd.DataFrame(
@@ -113,16 +114,25 @@ def predict_and_output_csv(model, src_file_name, dst_file_name, scalers=[]):
 
     return result
 
+# %% 元データからX,yを抽出する
 
-# %% 欠損値を埋める
-cleansed_train = cleanse_data(train)
-# cleansed_train.describe()
 
-# %% prepare train data
-# -----------------------------------------------------------------------------------------
-# cleansed_train[['OverallQual', 'OverallCond','GarageCars', 'Fireplaces']].head()
-X_org = cleansed_train.drop(['Id', 'SalePrice'], axis=1)
-y = cleansed_train['SalePrice']
+def split_X_y(original_data):
+    data = original_data.copy()
+    X = data.drop(['Id', 'SalePrice'], axis=1)
+    y = data['SalePrice']
+    return (X, y)
+
+# %% クレンジングしてデータをX,yに分解する
+
+
+filled_train = fill_missing_data(train)
+
+# ラベルを数値に置き換える
+cleansed_train = label_encoder(filled_train)
+
+X_org, y = split_X_y(cleansed_train)
+
 
 # %% スケールを合わせる
 scalers = []
@@ -133,11 +143,11 @@ scaler = StandardScaler().fit(X_org)
 scalers.append(scaler)
 
 X_scaled = scaler.transform(X_org)
+# X_scaled_l = scaler.transform(labeled_train)
 
 pca = PCA(n_components=10).fit(X_scaled)
 # scalers.append(pca)
 # X_pca = pca.transform(X_scaled)
-
 
 X = X_scaled
 # X = X_pca
@@ -177,7 +187,7 @@ model = MLPRegressor(solver='lbfgs', random_state=42,
                      hidden_layer_sizes=[10, 20, 10]).fit(X_train, y_train)
 models.append(model)
 
-# %% Print Scores
+# # %% Print Scores
 best_score = 0.0
 best_model = models[0]
 for m in models:
@@ -196,9 +206,9 @@ print(best_model)
 # %% Output 'output.csv' file.
 result = predict_and_output_csv(best_model, 'test.csv', 'out.csv', scalers)
 
-
 # %% Plot coef
 
+"""
 for model in models:
     if hasattr(model, 'coef_'):
         print(str(model))
@@ -212,3 +222,4 @@ for model in models:
         plt.title(str(m))
         plt.figure(figsize=(20, 30))
         sns.barplot(y='Name', x='coef', data=coef)
+"""
